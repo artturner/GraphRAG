@@ -1,0 +1,12 @@
+This is a sample text document for testing the LocalConnector.
+
+It contains multiple lines of text to verify that the connector can properly
+read and extract content from plain text files.
+
+The content includes various aspects:
+- Plain text formatting
+- Multiple paragraphs
+- Simple structure
+
+This document should be successfully loaded by the LocalConnector and
+converted into a Document object with the appropriate metadata.

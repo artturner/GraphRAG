@@ -1,0 +1,36 @@
+# Grounded GraphRAG Tutor - Default Configuration
+# This file contains the default settings for local development.
+
+# Corpus configuration
+corpus:
+  name: "default"
+  path: "./data"
+  connector_type: "local"
+
+# Vector store configuration
+vectorstore:
+  type: "faiss"
+  persist_directory: "./.vectorstore"
+  collection_name: "default"
+
+# Embedding provider configuration
+embeddings:
+  provider: "local"
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  dimension: 384
+
+# LLM provider configuration
+llm:
+  provider: "openai"
+  model_name: "gpt-4"
+  temperature: 0.0
+  max_tokens: 1024
+
+# LangGraph workflow configuration
+graph:
+  type: "rag"
+  max_retries: 2
+  refusal_threshold: 0.8
+
+# Global settings
+debug: false
