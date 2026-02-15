@@ -71,7 +71,7 @@ class EmbeddingsConfig(BaseSettings):
     @classmethod
     def validate_provider(cls, v: str) -> str:
         """Validate embedding provider is one of the supported types."""
-        valid_providers = {"openai", "bedrock", "local"}
+        valid_providers = {"openai", "bedrock", "bedrock_titan", "local", "local_st"}
         if v not in valid_providers:
             raise ValueError(f"provider must be one of {valid_providers}, got {v}")
         return v
