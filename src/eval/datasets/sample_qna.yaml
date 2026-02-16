@@ -1,0 +1,80 @@
+name: sample_qna
+description: >
+  Sample evaluation dataset for the Grounded GraphRAG Tutor.
+  Contains a mix of answerable factual/procedural questions and
+  expected refusals for out-of-corpus queries.
+version: "1.0"
+
+questions:
+  # -- Factual (answerable) -------------------------------------------
+
+  - question: "What is federalism?"
+    expected_answer_contains: ["system of government", "power"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["factual", "government"]
+    difficulty: easy
+
+  - question: "What are the three branches of government?"
+    expected_answer_contains: ["legislative", "executive", "judicial"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["factual", "government"]
+    difficulty: easy
+
+  - question: "Who was the first president of the United States?"
+    expected_answer_contains: ["Washington"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["factual", "history"]
+    difficulty: easy
+
+  - question: "What is the Bill of Rights?"
+    expected_answer_contains: ["amendment", "Constitution"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["factual", "government"]
+    difficulty: medium
+
+  - question: "What is the difference between the Senate and the House of Representatives?"
+    expected_answer_contains: ["Senate", "House"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["factual", "government"]
+    difficulty: medium
+
+  # -- Procedural (answerable) ----------------------------------------
+
+  - question: "How does a bill become a law?"
+    expected_answer_contains: ["Congress", "president"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["procedural", "government"]
+    difficulty: medium
+
+  - question: "How do I register to vote in the United States?"
+    expected_answer_contains: ["register"]
+    expected_citations_min: 1
+    expected_refusal: false
+    tags: ["procedural", "civic"]
+    difficulty: easy
+
+  # -- Expected refusals (out of corpus) ------------------------------
+
+  - question: "What is the capital of France?"
+    expected_refusal: true
+    refusal_reason: "not in corpus — geography"
+    tags: ["refusal", "geography"]
+    difficulty: easy
+
+  - question: "How do I bake a chocolate cake?"
+    expected_refusal: true
+    refusal_reason: "not in corpus — cooking"
+    tags: ["refusal", "cooking"]
+    difficulty: easy
+
+  - question: "What is the price of Bitcoin today?"
+    expected_refusal: true
+    refusal_reason: "not in corpus — live data"
+    tags: ["refusal", "finance"]
+    difficulty: easy
