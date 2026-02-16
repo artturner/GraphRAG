@@ -5,7 +5,7 @@ middleware, exception handlers, and lifespan management.
 
 Usage:
     from src.app import app
-    
+
     # Run with: uvicorn src.app.main:app --reload
 """
 
@@ -30,45 +30,160 @@ from src.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Component references — populated during startup, cleaned up on shutdown
+# ---------------------------------------------------------------------------
+
+_components: dict = {}
+
+
+def _init_components() -> dict:
+    """Eagerly initialise core components so the first request is fast.
+
+    Returns a dict of component instances that should be torn down later.
+    """
+    from src.embeddings.factory import EmbeddingsFactory
+    from src.llm.factory import LLMFactory
+    from src.store.factory import VectorStoreFactory
+    from src.retrieval.service import RetrievalService
+    from src.graphs.qna_graph import create_qna_graph
+
+    components: dict = {}
+
+    try:
+        # Embeddings
+        embeddings = EmbeddingsFactory.get_embeddings(settings.embeddings)
+        components["embeddings"] = embeddings
+        logger.info(
+            "Embeddings initialised",
+            extra={"provider": settings.embeddings.provider},
+        )
+    except Exception as exc:
+        logger.warning("Embeddings init failed (will retry on first request): %s", exc)
+
+    try:
+        # Vector store
+        store = VectorStoreFactory.get_store(
+            settings.vectorstore,
+            dimension=settings.embeddings.dimension,
+        )
+        components["store"] = store
+        logger.info(
+            "Vector store initialised",
+            extra={"type": settings.vectorstore.type},
+        )
+    except Exception as exc:
+        logger.warning("Vector store init failed: %s", exc)
+
+    try:
+        # LLM
+        llm = LLMFactory.get_llm(settings.llm)
+        components["llm"] = llm
+        logger.info(
+            "LLM initialised",
+            extra={"provider": settings.llm.provider, "model": settings.llm.model_name},
+        )
+    except Exception as exc:
+        logger.warning("LLM init failed (will retry on first request): %s", exc)
+
+    # Retrieval service (requires embeddings + store)
+    if "embeddings" in components and "store" in components:
+        retrieval = RetrievalService(
+            embeddings=components["embeddings"],
+            store=components["store"],
+        )
+        components["retrieval"] = retrieval
+
+        # Graph workflow (requires retrieval + llm)
+        if "llm" in components:
+            graph = create_qna_graph(
+                retrieval=retrieval,
+                llm=components["llm"],
+                config=settings.graph,
+            )
+            components["graph"] = graph
+
+            # Inject the pre-built workflow into the query route so it
+            # doesn't have to rebuild on first request.
+            import src.app.routes.query as _qmod
+
+            _qmod._workflow = graph
+            _qmod._retrieval_service = retrieval
+            logger.info("Query workflow pre-initialised")
+
+    return components
+
+
+def _shutdown_components(components: dict) -> None:
+    """Release resources held by components."""
+    store = components.get("store")
+    if store is not None and hasattr(store, "persist"):
+        try:
+            store.persist()
+            logger.info("Vector store persisted on shutdown")
+        except Exception as exc:
+            logger.warning("Vector store persist failed: %s", exc)
+
+    # Clear the global workflow reference so a fresh restart works cleanly.
+    try:
+        import src.app.routes.query as _qmod
+
+        _qmod._workflow = None
+        _qmod._retrieval_service = None
+    except Exception:
+        pass
+
+    components.clear()
+    logger.info("Components cleaned up")
+
+
+# ---------------------------------------------------------------------------
+# Lifespan
+# ---------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager for application initialization and cleanup.
-    
-    This handles startup and shutdown events for the FastAPI application,
-    including initializing connections and resources.
-    
+
     Args:
         app: The FastAPI application instance.
-        
+
     Yields:
         None during the application's lifetime.
     """
+    global _components
+
     # Startup
     logger.info(
         "Starting Grounded GraphRAG Tutor API",
         extra={
+            "version": "0.1.0",
             "debug": settings.debug,
             "llm_provider": settings.llm.provider,
             "llm_model": settings.llm.model_name,
             "embeddings_provider": settings.embeddings.provider,
             "vectorstore_type": settings.vectorstore.type,
-        }
+        },
     )
-    
-    # Initialize any resources here (e.g., vector store connections)
-    # This is where you would preload models, establish connections, etc.
-    
+
+    _components = _init_components()
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down Grounded GraphRAG Tutor API")
-    # Cleanup resources here
+    _shutdown_components(_components)
+
+
+# ---------------------------------------------------------------------------
+# App factory
+# ---------------------------------------------------------------------------
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application.
-    
+
     Returns:
         Configured FastAPI application instance.
     """
@@ -101,17 +216,17 @@ def create_app() -> FastAPI:
             },
         ],
     )
-    
+
     # Add middleware (order matters - last added is first executed)
     # Error handling should be outermost to catch all exceptions
     app.add_middleware(ErrorHandlingMiddleware)
-    
+
     # Request logging for observability
     app.add_middleware(RequestLoggingMiddleware)
-    
+
     # Correlation ID for request tracing
     app.add_middleware(CorrelationIDMiddleware)
-    
+
     # Configure CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -120,24 +235,24 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Register exception handlers (for any exceptions not caught by middleware)
     register_exception_handlers(app)
-    
+
     # Include routers
     app.include_router(health_router)
     app.include_router(ingest_router)
     app.include_router(query_router)
-    
+
     return app
 
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register exception handlers for the application.
-    
+
     These handlers serve as a fallback for exceptions that escape the
     ErrorHandlingMiddleware.
-    
+
     Args:
         app: The FastAPI application instance.
     """
@@ -148,22 +263,14 @@ def register_exception_handlers(app: FastAPI) -> None:
         InternalServerError,
     )
     from src.app.middleware import get_correlation_id
-    
+
     @app.exception_handler(AppHTTPException)
     async def app_http_exception_handler(
         request: Request, exc: AppHTTPException
     ) -> JSONResponse:
-        """Handle AppHTTPException with standardized error response.
-        
-        Args:
-            request: The incoming request.
-            exc: The raised AppHTTPException.
-            
-        Returns:
-            JSONResponse with error details.
-        """
+        """Handle AppHTTPException with standardized error response."""
         correlation_id = get_correlation_id(request)
-        
+
         logger.error(
             f"AppHTTPException: {exc.code} - {exc.message}",
             extra={
@@ -173,7 +280,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "correlation_id": correlation_id,
             }
         )
-        
+
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code=exc.code,
@@ -182,26 +289,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             ),
             correlation_id=correlation_id,
         )
-        
+
         return JSONResponse(
             status_code=exc.status_code,
             content=error_response.model_dump(exclude_none=True),
             headers=exc.headers,
         )
-    
+
     @app.exception_handler(RAGError)
     async def rag_error_handler(request: Request, exc: RAGError) -> JSONResponse:
-        """Handle all RAG-related exceptions.
-        
-        Args:
-            request: The incoming request.
-            exc: The raised RAGError exception.
-            
-        Returns:
-            JSONResponse with error details.
-        """
+        """Handle all RAG-related exceptions."""
         correlation_id = get_correlation_id(request)
-        
+
         logger.error(
             f"RAGError: {exc.message}",
             extra={
@@ -210,7 +309,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "correlation_id": correlation_id,
             }
         )
-        
+
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code="INTERNAL_ERROR",
@@ -219,25 +318,17 @@ def register_exception_handlers(app: FastAPI) -> None:
             ),
             correlation_id=correlation_id,
         )
-        
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump(exclude_none=True),
         )
-    
+
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        """Handle all unhandled exceptions.
-        
-        Args:
-            request: The incoming request.
-            exc: The raised exception.
-            
-        Returns:
-            JSONResponse with error details.
-        """
+        """Handle all unhandled exceptions."""
         correlation_id = get_correlation_id(request)
-        
+
         logger.exception(
             f"Unhandled exception: {str(exc)}",
             extra={
@@ -245,7 +336,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 "correlation_id": correlation_id,
             }
         )
-        
+
         error_response = ErrorResponse(
             error=ErrorDetail(
                 code="INTERNAL_ERROR",
@@ -254,7 +345,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             ),
             correlation_id=correlation_id,
         )
-        
+
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=error_response.model_dump(exclude_none=True),

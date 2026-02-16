@@ -1,36 +1,128 @@
-# Grounded GraphRAG Tutor - Default Configuration
-# This file contains the default settings for local development.
+# =============================================================================
+# Grounded GraphRAG Tutor — Default Configuration
+# =============================================================================
+# This file contains production-ready defaults for all subsystems.
+# Override any setting via environment variables (SECTION_KEY in uppercase)
+# or by supplying a custom YAML file with --config / CONFIG_PATH.
+#
+# Precedence (highest wins):
+#   1. Environment variables
+#   2. Custom YAML file (--config)
+#   3. This file
+#   4. Code defaults in Pydantic models
+# =============================================================================
 
-# Corpus configuration
+
+# -----------------------------------------------------------------------------
+# Corpus — where the source documents live
+# -----------------------------------------------------------------------------
 corpus:
-  name: "default"
-  path: "./data"
-  connector_type: "local"
+  name: "default"                     # Logical name for this corpus
+  path: "./data"                      # Directory containing source documents
+  connector_type: "local"             # local | s3 | web
 
-# Vector store configuration
-vectorstore:
-  type: "faiss"
-  persist_directory: "./.vectorstore"
-  collection_name: "default"
 
-# Embedding provider configuration
+# -----------------------------------------------------------------------------
+# Ingestion — document cleaning and chunking
+# -----------------------------------------------------------------------------
+ingestion:
+  chunk_size: 500                     # Target characters per chunk
+  chunk_overlap: 50                   # Overlap between consecutive chunks
+  chunker: "fixed"                    # fixed | sentence
+  clean_whitespace: true              # Normalise excessive whitespace
+  clean_html: true                    # Strip HTML tags from content
+
+
+# -----------------------------------------------------------------------------
+# Embeddings — vector representations of text
+# -----------------------------------------------------------------------------
+# Supported providers:
+#   local        — sentence-transformers (CPU, no API key, ~50-200 ms/embed)
+#   openai       — text-embedding-3-small/large (fast, cost per token)
+#   bedrock      — amazon.titan-embed-text-v1 (AWS credentials required)
+# -----------------------------------------------------------------------------
 embeddings:
   provider: "local"
   model_name: "sentence-transformers/all-MiniLM-L6-v2"
   dimension: 384
 
-# LLM provider configuration
+
+# -----------------------------------------------------------------------------
+# Vector Store — persistent similarity index
+# -----------------------------------------------------------------------------
+# Supported types:
+#   faiss   — in-process, fast, not shared across replicas
+#   chroma  — can run as a server, supports multi-replica setups
+# -----------------------------------------------------------------------------
+vectorstore:
+  type: "faiss"
+  persist_directory: "./.vectorstore"
+  collection_name: "default"
+
+
+# -----------------------------------------------------------------------------
+# Retrieval — search and citation building
+# -----------------------------------------------------------------------------
+retrieval:
+  default_k: 5                        # Number of chunks to retrieve per query
+  min_score: 0.0                       # Minimum similarity score to keep
+  reranker: "identity"                 # identity | cross_encoder
+
+
+# -----------------------------------------------------------------------------
+# LLM — language model for answer generation
+# -----------------------------------------------------------------------------
+# Supported providers:
+#   openai         — gpt-4, gpt-4-turbo, gpt-3.5-turbo (OPENAI_API_KEY)
+#   bedrock_claude — anthropic.claude-3-* (AWS credentials)
+#   ollama         — llama2, mistral, codellama (local, no API key)
+# -----------------------------------------------------------------------------
 llm:
   provider: "openai"
   model_name: "gpt-4"
-  temperature: 0.0
-  max_tokens: 1024
+  temperature: 0.0                    # 0.0 = deterministic, 2.0 = max creativity
+  max_tokens: 1024                    # Maximum response length
 
-# LangGraph workflow configuration
+
+# -----------------------------------------------------------------------------
+# Graph — LangGraph Q&A workflow
+# -----------------------------------------------------------------------------
 graph:
-  type: "rag"
-  max_retries: 2
-  refusal_threshold: 0.8
+  type: "rag"                          # rag | multi_turn
+  max_retries: 2                       # Retry budget before refusing (0–5)
+  refusal_threshold: 0.8               # Minimum confidence to accept answer (0–1)
 
-# Global settings
-debug: false
+
+# -----------------------------------------------------------------------------
+# API — FastAPI server settings
+# -----------------------------------------------------------------------------
+api:
+  host: "0.0.0.0"
+  port: 8000
+  cors_origins: ["*"]                  # Restrict in production
+  docs_enabled: true                   # Swagger UI at /docs
+
+
+# -----------------------------------------------------------------------------
+# Logging — structured JSON logs
+# -----------------------------------------------------------------------------
+logging:
+  level: "INFO"                        # DEBUG | INFO | WARNING | ERROR
+  format: "json"                       # json | text
+  include_correlation_id: true
+
+
+# -----------------------------------------------------------------------------
+# Evaluation — eval harness settings
+# -----------------------------------------------------------------------------
+eval:
+  default_suite: "sample_qna"
+  output_directory: "./reports"
+  groundedness_threshold: 0.3          # Sentence support threshold
+  relevance_length_penalty: true
+
+
+# -----------------------------------------------------------------------------
+# Global flags
+# -----------------------------------------------------------------------------
+debug: false                           # Enable debug-level logging globally

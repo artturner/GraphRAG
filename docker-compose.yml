@@ -1,0 +1,62 @@
+# =============================================================================
+# Grounded GraphRAG Tutor — Docker Compose
+# =============================================================================
+#
+# Usage:
+#   docker compose up              # start the API
+#   docker compose up --build      # rebuild and start
+#   docker compose --profile ollama up  # start with local Ollama LLM
+#
+# Environment variables are loaded from .env in the project root.
+# Copy .env.example to .env and fill in your values before starting.
+
+services:
+  # -------------------------------------------------------------------------
+  # Main API service
+  # -------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: graphrag-tutor:latest
+    container_name: graphrag-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - CONFIG_PATH=configs/default.yaml
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Persist vector store and corpus data across restarts
+      - vectorstore_data:/app/.vectorstore
+      - ./data:/app/data:ro
+      # Mount reports directory for eval output
+      - ./reports:/app/reports
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Optional: local Ollama LLM service
+  # -------------------------------------------------------------------------
+  # Activate with:  docker compose --profile ollama up
+  # Then set LLM_PROVIDER=ollama and OLLAMA_BASE_URL=http://ollama:11434
+  ollama:
+    image: ollama/ollama:latest
+    container_name: graphrag-ollama
+    profiles:
+      - ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  vectorstore_data:
+  ollama_data:

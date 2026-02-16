@@ -2,61 +2,42 @@
 
 A content-agnostic RAG service with LangGraph orchestration that answers questions only when supported by sources, returns citations, and refuses gracefully when evidence is insufficient.
 
-## Overview
+## Key Features
 
-This project implements a Retrieval-Augmented Generation (RAG) service with the following key features:
-
-- **Grounded Responses**: Answers are only generated when supported by retrieved source documents
-- **Citation Support**: All answers include citations pointing to source documents
-- **Graceful Refusal**: The system refuses to answer when evidence is insufficient
-- **LangGraph Orchestration**: Uses LangGraph for workflow state management
-- **Multi-Provider Support**: Works with OpenAI, AWS Bedrock, and local LLMs
+- **Grounded Responses** -- answers are generated only when supported by retrieved source documents
+- **Citation Support** -- every answer includes citations pointing to source chunks
+- **Graceful Refusal** -- the system refuses to answer when evidence is insufficient
+- **LangGraph Orchestration** -- a stateful retry/refuse loop with grounding verification
+- **Multi-Provider Support** -- OpenAI, AWS Bedrock (Claude), Ollama, and local sentence-transformers
+- **Evaluation Harness** -- built-in scorers for groundedness, relevance, and refusal correctness
+- **Docker Ready** -- multi-stage Dockerfile and Compose file included
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              API LAYER                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  FastAPI Endpoints: /query, /health, /ingest, /eval                 │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           LANGGRAPH WORKFLOW                                 │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────────┐         │
-│  │  route   │──▶│ retrieve │──▶│  answer  │──▶│ verify_grounding │         │
-│  └──────────┘   └──────────┘   └──────────┘   └──────────────────┘         │
-│                                       │              │                      │
-│                                       │              ▼                      │
-│                                       │    ┌──────────────────┐            │
-│                                       │    │ retry / refuse   │            │
-│                                       │    └──────────────────┘            │
-│                                       │              │                      │
-│                                       ▼              ▼                      │
-│                                ┌───────────────────────┐                   │
-│                                │        END            │                   │
-│                                └───────────────────────┘                   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           SERVICE LAYER                                      │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │ Connectors   │  │  Embeddings  │  │ Vector Store │  │  Retrieval   │    │
-│  │ (doc load)   │  │  (vectors)   │  │  (index)     │  │  (search)    │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           PROVIDER LAYER                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │ Bedrock      │  │   OpenAI     │  │   Local      │  │   FAISS/     │    │
-│  │ (Claude)     │  │   (GPT-4)    │  │   (Ollama)   │  │   Chroma     │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────────────────────┘
+                           ┌──────────────────────────────────┐
+                           │          FastAPI Layer            │
+                           │  /query   /health   /ingest      │
+                           └────────────────┬─────────────────┘
+                                            │
+                           ┌────────────────▼─────────────────┐
+                           │      LangGraph Q&A Workflow       │
+                           │                                   │
+                           │  route ─► retrieve ─► answer      │
+                           │              ▲          │         │
+                           │              │          ▼         │
+                           │           retry ◄── verify        │
+                           │              │                    │
+                           │              ▼                    │
+                           │           refuse ─► END           │
+                           └────────────────┬─────────────────┘
+                                            │
+          ┌─────────────┬───────────────────┼───────────────┬──────────┐
+          │             │                   │               │          │
+     Connectors    Embeddings         Vector Store     Retrieval      LLM
+     (local/S3)    (local/OpenAI/     (FAISS/Chroma)   (search +    (OpenAI/
+                    Bedrock)                            citations)   Bedrock/
+                                                                    Ollama)
 ```
 
 ## Project Structure
@@ -64,116 +45,159 @@ This project implements a Retrieval-Augmented Generation (RAG) service with the 
 ```
 grounded-graphrag-tutor/
 ├── src/
+│   ├── app/            # FastAPI application, routes, middleware
 │   ├── connectors/     # Document source adapters (local, S3, web)
-│   ├── ingestion/      # Document cleaning and chunking pipeline
-│   ├── embeddings/     # Embedding providers (Bedrock, OpenAI, local)
-│   ├── store/          # Vector store adapters (FAISS, Chroma)
-│   ├── retrieval/      # Retrieval service with citation extraction
-│   ├── graphs/         # LangGraph workflow definitions
-│   ├── app/            # FastAPI API layer
-│   └── eval/           # Evaluation datasets and runner
-├── tests/              # Test suite (mirrors src structure)
-├── configs/            # Configuration files
-├── scripts/            # CLI scripts for ingestion and evaluation
+│   ├── ingestion/      # Text cleaning and chunking pipeline
+│   ├── embeddings/     # Embedding providers (local, OpenAI, Bedrock)
+│   ├── store/          # Vector store adapters (FAISS, ChromaDB)
+│   ├── retrieval/      # Retrieval service with reranking and citations
+│   ├── llm/            # LLM providers (OpenAI, Bedrock, Ollama)
+│   ├── graphs/         # LangGraph workflow (nodes, state, grounding)
+│   ├── eval/           # Evaluation: datasets, scorers, runner, report
+│   ├── config.py       # Pydantic-settings configuration
+│   ├── types.py        # Shared Pydantic models
+│   └── exceptions.py   # Exception hierarchy
+├── tests/              # Test suite (mirrors src/ structure)
+├── configs/            # YAML configuration files
+├── scripts/            # CLI scripts (ingest, eval, query)
 ├── docs/               # Documentation
+├── Dockerfile          # Multi-stage Docker build
+├── docker-compose.yml  # Compose with optional Ollama service
 ├── pyproject.toml      # Project metadata and dependencies
-├── .env.example        # Environment variable template
-└── .gitignore          # Git ignore patterns
+└── .env.example        # Environment variable template
 ```
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- pip or uv package manager
+- Python 3.10+
+- An LLM API key (OpenAI, AWS Bedrock, or a local Ollama instance)
 
 ### Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/example/grounded-graphrag-tutor.git
-   cd grounded-graphrag-tutor
-   ```
+```bash
+# Clone
+git clone https://github.com/artturner/GraphRAG.git
+cd GraphRAG
 
-2. Create a virtual environment:
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+# Virtual environment
+python -m venv .venv
+source .venv/bin/activate        # Linux / macOS
+# .venv\Scripts\activate         # Windows
 
-3. Install dependencies:
-   ```bash
-   pip install -e ".[dev]"
-   ```
+# Install (with dev tools)
+pip install -e ".[dev]"
 
-4. Copy environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
+# Configure
+cp .env.example .env
+# Edit .env — at minimum set OPENAI_API_KEY or choose another provider
+```
 
-### Running the Service
+### Start the API Server
 
-Start the API server:
 ```bash
 uvicorn src.app.main:app --reload
+# API docs at http://localhost:8000/docs
 ```
 
-### Ingesting Documents
+### Ingest Documents
 
 ```bash
-python scripts/ingest.py --source ./data
+python scripts/ingest.py --corpus ./data
 ```
 
-### Running Evaluation
+### Ask a Question
 
 ```bash
-python scripts/eval.py --dataset ./eval/datasets/default.json
+# Single question
+python scripts/query.py --question "What is federalism?"
+
+# Interactive REPL
+python scripts/query.py --interactive
+
+# With debug output
+python scripts/query.py -q "What is federalism?" --debug
 ```
 
-## Configuration
+### Run via Docker
 
-Configuration is managed via YAML files and environment variables. See [`configs/default.yaml`](configs/default.yaml) for all available options.
+```bash
+docker build -t graphrag-tutor .
+docker run -p 8000:8000 --env-file .env graphrag-tutor
+# Or with Compose:
+docker compose up --build
+```
 
-Key configuration areas:
+### Run Evaluation
 
-- **Corpus**: Document source configuration
-- **Ingestion**: Chunking and cleaning settings
-- **Embeddings**: Embedding provider and model selection
-- **VectorStore**: Vector database configuration
-- **LLM**: Language model provider settings
-- **Graph**: LangGraph workflow parameters
+```bash
+python scripts/eval.py --suite sample_qna --output reports/
+```
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/query` | POST | Submit a question for RAG processing |
-| `/health` | GET | Check service health status |
-| `/ingest` | POST | Trigger document ingestion |
-| `/eval` | POST | Run evaluation harness |
+| Endpoint                  | Method | Description                       |
+|---------------------------|--------|-----------------------------------|
+| `POST /query`             | POST   | Submit a question for processing  |
+| `GET  /health`            | GET    | Check system health               |
+| `POST /ingest`            | POST   | Trigger document ingestion        |
+| `GET  /ingest/status/{c}` | GET    | Check async ingestion status      |
+
+See [docs/API.md](docs/API.md) for full request/response schemas and examples.
+
+## Configuration
+
+Configuration uses three layers (later overrides earlier):
+
+1. **Defaults** in code
+2. **YAML file** (`configs/default.yaml`)
+3. **Environment variables** (prefix pattern: `SECTION_KEY`)
+
+Key sections: `corpus`, `embeddings`, `vectorstore`, `llm`, `graph`.
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the complete reference.
+
+## Evaluation
+
+The built-in evaluation harness measures three metrics:
+
+| Metric               | Target | Description                                      |
+|----------------------|--------|--------------------------------------------------|
+| **Groundedness**     | > 90%  | Is the answer supported by retrieved chunks?     |
+| **Relevance**        | > 85%  | Does the answer address the original question?   |
+| **Refusal Accuracy** | > 95%  | Does the system correctly refuse out-of-scope Qs?|
+
+See [docs/EVALUATION.md](docs/EVALUATION.md) for details on running evals and creating custom datasets.
+
+## Deployment
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for Docker, cloud, and scaling guidance.
 
 ## Development
 
 ### Running Tests
 
 ```bash
+# All tests
 pytest tests/ -v
+
+# Specific module
+pytest tests/eval/ -v
+pytest tests/graphs/ -v
+
+# With coverage
+pytest tests/ --cov=src --cov-report=html
 ```
 
-### Code Style
+### CLI Scripts
 
-This project follows Python best practices with type hints and docstrings.
-
-## Success Criteria
-
-The system aims to meet these quality thresholds:
-
-- **Groundedness**: > 90%
-- **Relevance**: > 85%
-- **Refusal Correctness**: > 95%
+```bash
+python scripts/ingest.py --help
+python scripts/eval.py --help
+python scripts/query.py --help
+```
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License -- see LICENSE file for details.

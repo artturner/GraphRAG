@@ -1,0 +1,58 @@
+# =============================================================================
+# Docker ignore — exclude files not needed in the container
+# =============================================================================
+
+# Version control
+.git
+.gitignore
+
+# Python artifacts
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv
+venv
+env
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing
+tests/
+.pytest_cache
+.coverage
+htmlcov/
+test_chroma/
+
+# Documentation
+docs/
+*.md
+
+# Docker files (don't copy into context recursively)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Environment secrets (should be passed via --env-file or env_file)
+.env
+
+# Reports and local data caches
+reports/
+.vectorstore/
+
+# Egg info
+grounded_graphrag_tutor.egg-info/
