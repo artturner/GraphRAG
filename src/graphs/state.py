@@ -25,7 +25,9 @@ class GraphState(TypedDict, total=False):
         answer: Generated answer text, or ``None`` if not yet produced.
         citations: Citations supporting the answer.
         confidence: Confidence / groundedness score in [0, 1].
+        is_grounded: Whether the answer passed the grounding check.
         retry_count: Number of answer-generation retries so far.
+        action: Retry-node decision (``accept``, ``retry``, or ``refuse``).
         refusal_reason: Human-readable reason if the system refused.
         error: Error message if a node failed.
 
@@ -39,7 +41,9 @@ class GraphState(TypedDict, total=False):
             "answer": None,
             "citations": [],
             "confidence": 0.0,
+            "is_grounded": False,
             "retry_count": 0,
+            "action": None,
             "refusal_reason": None,
             "error": None,
         }
@@ -53,7 +57,9 @@ class GraphState(TypedDict, total=False):
     answer: str | None
     citations: list[Citation]
     confidence: float
+    is_grounded: bool
     retry_count: int
+    action: str | None
     refusal_reason: str | None
     error: str | None
 
@@ -85,7 +91,9 @@ class StateBuilder:
         self._answer: str | None = None
         self._citations: list[Citation] = []
         self._confidence: float = 0.0
+        self._is_grounded: bool = False
         self._retry_count: int = 0
+        self._action: str | None = None
         self._refusal_reason: str | None = None
         self._error: str | None = None
 
@@ -124,9 +132,19 @@ class StateBuilder:
         self._confidence = confidence
         return self
 
+    def with_is_grounded(self, is_grounded: bool) -> "StateBuilder":
+        """Set the grounding flag."""
+        self._is_grounded = is_grounded
+        return self
+
     def with_retry_count(self, count: int) -> "StateBuilder":
         """Set the retry count."""
         self._retry_count = count
+        return self
+
+    def with_action(self, action: str) -> "StateBuilder":
+        """Set the retry-node action."""
+        self._action = action
         return self
 
     def with_refusal_reason(self, reason: str) -> "StateBuilder":
@@ -155,7 +173,9 @@ class StateBuilder:
             answer=self._answer,
             citations=self._citations,
             confidence=self._confidence,
+            is_grounded=self._is_grounded,
             retry_count=self._retry_count,
+            action=self._action,
             refusal_reason=self._refusal_reason,
             error=self._error,
         )
