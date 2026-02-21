@@ -308,10 +308,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 retrieval = RetrievalService(embeddings=embeddings, store=store)
 
-                # Collect chunks from a fresh pipeline run (or cache)
-                chunks = pipeline.run().chunks if hasattr(pipeline.run(), "chunks") else []
+                # Collect chunks by processing each document through the pipeline
+                chunks = []
+                for doc in connector.load():
+                    chunks.extend(pipeline.process_document(doc))
                 if chunks:
                     indexed = retrieval.index_documents(chunks)
+                    store.save()
             except Exception as exc:
                 logger.warning("Indexing failed: %s", exc)
                 final_progress.errors.append(f"Indexing: {exc}")
