@@ -12,7 +12,7 @@ in ``src.llm.base`` (Chunk 8).
 import logging
 from typing import Any, Protocol, runtime_checkable
 
-from src.graphs.prompts import build_rag_prompt, build_refusal_prompt
+from src.graphs.prompts import build_rag_prompt, build_refusal_prompt, build_synthesis_prompt
 from src.graphs.state import GraphState
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,11 @@ def answer_node(state: GraphState, llm: BaseLLM) -> dict:
     context_texts = [r.chunk.content for r in search_results]
 
     try:
-        prompt = build_rag_prompt(question, context_texts)
+        query_type: str = state.get("query_type", "factual")
+        if query_type == "synthesis":
+            prompt = build_synthesis_prompt(question, context_texts)
+        else:
+            prompt = build_rag_prompt(question, context_texts)
         answer_text = llm.generate(prompt)
 
         # Derive a simple confidence from the average search score

@@ -8,6 +8,8 @@ Supported query types:
   "When …", "Define …", etc.).
 - **procedural** — how-to / step-by-step questions ("How do I …",
   "How to …", "Steps to …", "Explain how …", etc.).
+- **synthesis** — generative / creative requests ("Suggest …",
+  "Brainstorm …", "Propose …", "List some ideas …", etc.).
 - **unsupported** — greetings, chitchat, commands, or anything that
   cannot be answered from a document corpus.
 """
@@ -77,6 +79,28 @@ _PROCEDURAL_PATTERNS: list[re.Pattern[str]] = [
     ]
 ]
 
+# Patterns that indicate a synthesis / generative query.
+_SYNTHESIS_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p, re.IGNORECASE)
+    for p in [
+        r"^suggest\b",
+        r"^brainstorm\b",
+        r"^generate\b",
+        r"^propose\b",
+        r"^come\s+up\s+with\b",
+        r"^recommend\b",
+        r"^create\s+a?\s*list\b",
+        r"^draft\b",
+        r"^design\b",
+        r"\blist\s+(?:some|possible|potential|research|ideas?)\b",
+        r"\bsuggest\s+(?:some|a\s+few|possible|potential|research)\b",
+        r"\bbrainstorm\b",
+        r"\bideas?\s+for\b",
+        r"\btopics?\s+(?:for|to|about)\b",
+        r"\bpossible\s+(?:topics?|ideas?|directions?|approaches?)\b",
+    ]
+]
+
 # Patterns that strongly signal an unsupported / off-topic query.
 _UNSUPPORTED_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
@@ -100,7 +124,7 @@ def route_node(state: GraphState) -> dict:
 
     The function examines ``state["question"]`` using lightweight regex
     heuristics and returns a dict with ``query_type`` set to one of
-    ``"factual"``, ``"procedural"``, or ``"unsupported"``.
+    ``"factual"``, ``"procedural"``, ``"synthesis"``, or ``"unsupported"``.
 
     Args:
         state: Current graph state — must contain ``question``.
@@ -142,6 +166,10 @@ def _classify(query: str) -> str:
     # Check unsupported first — short-circuit greetings / chitchat.
     if _matches_any(query, _UNSUPPORTED_PATTERNS):
         return "unsupported"
+
+    # Synthesis before procedural/factual — generative requests are distinct.
+    if _matches_any(query, _SYNTHESIS_PATTERNS):
+        return "synthesis"
 
     # Procedural before factual — "how" questions are more specific.
     if _matches_any(query, _PROCEDURAL_PATTERNS):

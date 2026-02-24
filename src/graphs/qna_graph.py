@@ -11,13 +11,14 @@ Flow::
       ▼
     route ──unsupported──► refuse ──► END
       │
-      │ factual / procedural
+      │ factual / procedural / synthesis
       ▼
     retrieve
       │
       ▼
-    answer
+    answer ──synthesis──► END
       │
+      │ factual / procedural
       ▼
     verify
       │
@@ -65,6 +66,13 @@ def _route_decision(state: GraphState) -> str:
     if query_type == "unsupported":
         return "refuse"
     return "retrieve"
+
+
+def _answer_decision(state: GraphState) -> str:
+    """Skip verify/retry for synthesis queries — go straight to END."""
+    if state.get("query_type") == "synthesis":
+        return END
+    return "verify"
 
 
 def _retry_decision(state: GraphState) -> str:
@@ -146,7 +154,11 @@ def create_qna_graph(
     )
 
     graph.add_edge("retrieve", "answer")
-    graph.add_edge("answer", "verify")
+    graph.add_conditional_edges(
+        "answer",
+        _answer_decision,
+        {"verify": "verify", END: END},
+    )
     graph.add_edge("verify", "retry")
 
     graph.add_conditional_edges(
