@@ -16,9 +16,9 @@ Flow::
     retrieve
       │
       ▼
-    answer ──synthesis / summarize──► END
+    answer ──synthesis / summarize (confidence ≥ threshold)──► END
       │
-      │ factual / procedural
+      │ factual / procedural / low-confidence generative
       ▼
     verify
       │
@@ -68,11 +68,21 @@ def _route_decision(state: GraphState) -> str:
     return "retrieve"
 
 
-def _answer_decision(state: GraphState) -> str:
-    """Skip verify/retry for generative queries — go straight to END."""
-    if state.get("query_type") in ("synthesis", "summarize"):
-        return END
-    return "verify"
+def _make_answer_decision(refusal_threshold: float):
+    """Return an answer-routing function closed over *refusal_threshold*.
+
+    Generative queries (synthesis, summarize) bypass verify/retry unless
+    confidence is below the refusal threshold, in which case low-quality
+    retrieval is caught before the answer reaches the user.
+    """
+    def _answer_decision(state: GraphState) -> str:
+        if state.get("query_type") in ("synthesis", "summarize"):
+            confidence = state.get("confidence", 0.0)
+            if confidence < refusal_threshold:
+                return "verify"
+            return END
+        return "verify"
+    return _answer_decision
 
 
 def _retry_decision(state: GraphState) -> str:
@@ -156,7 +166,7 @@ def create_qna_graph(
     graph.add_edge("retrieve", "answer")
     graph.add_conditional_edges(
         "answer",
-        _answer_decision,
+        _make_answer_decision(config.refusal_threshold),
         {"verify": "verify", END: END},
     )
     graph.add_edge("verify", "retry")
