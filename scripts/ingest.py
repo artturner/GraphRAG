@@ -78,33 +78,33 @@ Examples:
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=500,
-        help="Chunk size for fixed-size chunker (default: 500)",
+        default=None,
+        help="Chunk size for fixed-size chunker (default: from config)",
     )
     parser.add_argument(
         "--chunk-overlap",
         type=int,
-        default=0,
-        help="Overlap between chunks (default: 0)",
+        default=None,
+        help="Overlap between chunks (default: from config)",
     )
     parser.add_argument(
         "--chunker",
         type=str,
         choices=["fixed", "sentence"],
-        default="fixed",
-        help="Chunking strategy to use (default: fixed)",
+        default=None,
+        help="Chunking strategy to use (default: from config)",
     )
     parser.add_argument(
         "--min-size",
         type=int,
-        default=200,
-        help="Minimum chunk size for sentence chunker (default: 200)",
+        default=None,
+        help="Minimum chunk size for sentence chunker (default: from config)",
     )
     parser.add_argument(
         "--max-size",
         type=int,
-        default=1000,
-        help="Maximum chunk size for sentence chunker (default: 1000)",
+        default=None,
+        help="Maximum chunk size for sentence chunker (default: from config)",
     )
     parser.add_argument(
         "--index",
@@ -250,19 +250,19 @@ def main(argv: list[str] | None = None) -> int:
         # Create cleaner
         cleaner = TextCleaner()
 
-        # Create chunker
-        if args.chunker == "sentence":
-            chunker = SentenceChunker(
-                min_size=args.min_size,
-                max_size=args.max_size,
-            )
-            chunker_desc = f"sentence (min={args.min_size}, max={args.max_size})"
+        # Create chunker — CLI args override config, config overrides code defaults
+        ing = settings.ingestion
+        chunker_type = args.chunker or ing.chunker
+        if chunker_type == "sentence":
+            max_size = args.max_size or ing.chunk_size
+            min_size = args.min_size or max(200, max_size // 4)
+            chunker = SentenceChunker(min_size=min_size, max_size=max_size)
+            chunker_desc = f"sentence (min={min_size}, max={max_size})"
         else:
-            chunker = FixedSizeChunker(
-                chunk_size=args.chunk_size,
-                overlap=args.chunk_overlap,
-            )
-            chunker_desc = f"fixed (size={args.chunk_size}, overlap={args.chunk_overlap})"
+            chunk_size = args.chunk_size or ing.chunk_size
+            chunk_overlap = args.chunk_overlap if args.chunk_overlap is not None else ing.chunk_overlap
+            chunker = FixedSizeChunker(chunk_size=chunk_size, overlap=chunk_overlap)
+            chunker_desc = f"fixed (size={chunk_size}, overlap={chunk_overlap})"
 
         # Create pipeline
         pipeline = IngestionPipeline(

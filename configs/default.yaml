@@ -26,9 +26,9 @@ corpus:
 # Ingestion — document cleaning and chunking
 # -----------------------------------------------------------------------------
 ingestion:
-  chunk_size: 500                     # Target characters per chunk
-  chunk_overlap: 50                   # Overlap between consecutive chunks
-  chunker: "fixed"                    # fixed | sentence
+  chunk_size: 2000                    # Target characters per chunk (~500 tokens)
+  chunk_overlap: 200                  # Overlap between consecutive chunks (~50 tokens)
+  chunker: "sentence"                 # fixed | sentence
   clean_whitespace: true              # Normalise excessive whitespace
   clean_html: true                    # Strip HTML tags from content
 

@@ -36,6 +36,26 @@ class CorpusConfig(BaseSettings):
         return v
 
 
+class IngestionConfig(BaseSettings):
+    """Configuration for document ingestion and chunking."""
+
+    model_config = SettingsConfigDict(env_prefix="INGESTION_")
+
+    chunk_size: int = Field(default=2000, description="Target characters per chunk (~500 tokens)", ge=1)
+    chunk_overlap: int = Field(default=200, description="Overlap between consecutive chunks", ge=0)
+    chunker: str = Field(default="sentence", description="Chunking strategy: fixed | sentence")
+    clean_whitespace: bool = Field(default=True, description="Normalise excessive whitespace")
+    clean_html: bool = Field(default=True, description="Strip HTML tags from content")
+
+    @field_validator("chunker")
+    @classmethod
+    def validate_chunker(cls, v: str) -> str:
+        valid = {"fixed", "sentence"}
+        if v not in valid:
+            raise ValueError(f"chunker must be one of {valid}, got {v}")
+        return v
+
+
 class VectorStoreConfig(BaseSettings):
     """Configuration for vector store."""
     
@@ -140,6 +160,7 @@ class Settings(BaseSettings):
     
     # Nested configuration sections
     corpus: CorpusConfig = Field(default_factory=CorpusConfig)
+    ingestion: IngestionConfig = Field(default_factory=IngestionConfig)
     vectorstore: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
     embeddings: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
