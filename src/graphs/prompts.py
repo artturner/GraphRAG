@@ -81,6 +81,38 @@ def build_refusal_prompt(question: str) -> str:
     return REFUSAL_PROMPT.format(question=question)
 
 
+SUMMARIZE_PROMPT = """\
+You are a knowledgeable research assistant. Using only the following context \
+passages, produce a clear and concise summary. Identify the key points, main \
+ideas, and any important details. Structure your response with a brief \
+overview followed by bullet-point key takeaways.
+
+Context:
+{context}
+
+Topic or passage to summarize: {question}
+
+Summary:"""
+
+
+def build_summarize_prompt(question: str, context_texts: list[str]) -> str:
+    """Build a summarize prompt from a question and a list of context passages.
+
+    Args:
+        question: The user's summarization request.
+        context_texts: List of text passages retrieved from the corpus.
+
+    Returns:
+        The formatted prompt string ready for LLM generation.
+    """
+    if not context_texts:
+        context_block = "(No relevant context was found.)"
+    else:
+        parts = [f"[{i}] {text}" for i, text in enumerate(context_texts, 1)]
+        context_block = "\n\n".join(parts)
+    return SUMMARIZE_PROMPT.format(context=context_block, question=question)
+
+
 SYNTHESIS_PROMPT = """\
 You are a knowledgeable research assistant. Use the following context passages \
 as your primary source material. You may draw connections, identify patterns, \

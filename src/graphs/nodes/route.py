@@ -10,6 +10,8 @@ Supported query types:
   "How to …", "Steps to …", "Explain how …", etc.).
 - **synthesis** — generative / creative requests ("Suggest …",
   "Brainstorm …", "Propose …", "List some ideas …", etc.).
+- **summarize** — condensing requests ("Summarize …", "Key points of …",
+  "TL;DR …", "Overview of …", etc.).
 - **unsupported** — greetings, chitchat, commands, or anything that
   cannot be answered from a document corpus.
 """
@@ -76,6 +78,25 @@ _PROCEDURAL_PATTERNS: list[re.Pattern[str]] = [
         r"\btutorial\b",
         r"\bwalkthrough\b",
         r"\bexplain\s+how\b",
+    ]
+]
+
+# Patterns that indicate a summarization query.
+_SUMMARIZE_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p, re.IGNORECASE)
+    for p in [
+        r"^summarize\b",
+        r"^summarise\b",
+        r"^recap\b",
+        r"^condense\b",
+        r"\bsummar(?:y|ize|ise)\s+(?:of|the|this|chapter)\b",
+        r"\bkey\s+(?:points?|ideas?|takeaways?|concepts?)\b",
+        r"\bmain\s+(?:points?|ideas?|concepts?|themes?)\b",
+        r"\boverview\s+of\b",
+        r"\btl;?dr\b",
+        r"\bin\s+(?:brief|short|summary|a\s+nutshell)\b",
+        r"\bbrief(?:ly)?\s+(?:describe|explain|outline|summarize)\b",
+        r"\bkey\s+takeaways?\b",
     ]
 ]
 
@@ -166,6 +187,10 @@ def _classify(query: str) -> str:
     # Check unsupported first — short-circuit greetings / chitchat.
     if _matches_any(query, _UNSUPPORTED_PATTERNS):
         return "unsupported"
+
+    # Summarize before synthesis — more specific intent.
+    if _matches_any(query, _SUMMARIZE_PATTERNS):
+        return "summarize"
 
     # Synthesis before procedural/factual — generative requests are distinct.
     if _matches_any(query, _SYNTHESIS_PATTERNS):

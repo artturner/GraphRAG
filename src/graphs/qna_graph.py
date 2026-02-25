@@ -11,12 +11,12 @@ Flow::
       ▼
     route ──unsupported──► refuse ──► END
       │
-      │ factual / procedural / synthesis
+      │ factual / procedural / synthesis / summarize
       ▼
     retrieve
       │
       ▼
-    answer ──synthesis──► END
+    answer ──synthesis / summarize──► END
       │
       │ factual / procedural
       ▼
@@ -69,8 +69,8 @@ def _route_decision(state: GraphState) -> str:
 
 
 def _answer_decision(state: GraphState) -> str:
-    """Skip verify/retry for synthesis queries — go straight to END."""
-    if state.get("query_type") == "synthesis":
+    """Skip verify/retry for generative queries — go straight to END."""
+    if state.get("query_type") in ("synthesis", "summarize"):
         return END
     return "verify"
 
