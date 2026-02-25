@@ -130,6 +130,12 @@ class GraphConfig(BaseSettings):
         ge=0.0,
         le=1.0
     )
+    generative_confidence_floor: float = Field(
+        default=0.4,
+        description="Minimum confidence for synthesis/summarize to bypass verify; below this fabrication is likely",
+        ge=0.0,
+        le=1.0
+    )
     
     @field_validator("type")
     @classmethod

@@ -91,6 +91,7 @@ graph:
   type: "rag"                          # rag | multi_turn
   max_retries: 2                       # Retry budget before refusing (0–5)
   refusal_threshold: 0.8               # Minimum confidence to accept answer (0–1)
+  generative_confidence_floor: 0.4     # Below this, synthesis/summarize goes to verify instead of END
 
 
 # -----------------------------------------------------------------------------

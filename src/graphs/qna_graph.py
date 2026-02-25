@@ -166,7 +166,7 @@ def create_qna_graph(
     graph.add_edge("retrieve", "answer")
     graph.add_conditional_edges(
         "answer",
-        _make_answer_decision(config.refusal_threshold),
+        _make_answer_decision(config.generative_confidence_floor),
         {"verify": "verify", END: END},
     )
     graph.add_edge("verify", "retry")
