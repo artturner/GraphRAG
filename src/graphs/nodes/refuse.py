@@ -5,8 +5,14 @@ cannot generate a satisfactory answer.
 """
 
 import logging
+import re
 
 from src.graphs.state import GraphState
+
+_STRUCTURAL_RE = re.compile(
+    r"\bchapter\s+\d+\b|\bch\.?\s*\d+\b|\bpage\s+\d+\b|\bp\.\s*\d+\b|\bsection\s+\d+[\.\d]*\b",
+    re.IGNORECASE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +27,16 @@ def _build_refusal_reason(state: GraphState) -> str:
     search_results = state.get("search_results", [])
 
     parts: list[str] = []
+
+    if _STRUCTURAL_RE.search(question):
+        parts.append(
+            "This system uses semantic search and cannot look up content by "
+            "chapter, page, or section number. "
+            "Try asking about a specific topic instead — for example, "
+            "\"Summarize the key points of bicameralism\" rather than "
+            "\"Give me the key points of chapter 2\"."
+        )
+        return " ".join(parts)
 
     if not search_results and not chunks:
         parts.append(

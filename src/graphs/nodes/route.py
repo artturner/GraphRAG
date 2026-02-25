@@ -12,8 +12,9 @@ Supported query types:
   "Brainstorm …", "Propose …", "List some ideas …", etc.).
 - **summarize** — condensing requests ("Summarize …", "Key points of …",
   "TL;DR …", "Overview of …", etc.).
-- **unsupported** — greetings, chitchat, commands, or anything that
-  cannot be answered from a document corpus.
+- **unsupported** — greetings, chitchat, commands, structural references
+  (chapter N, page N, section N), or anything that cannot be answered
+  from a document corpus via semantic search.
 """
 
 import logging
@@ -134,6 +135,19 @@ _UNSUPPORTED_PATTERNS: list[re.Pattern[str]] = [
     ]
 ]
 
+# Patterns that reference document structure (chapter/page numbers) which
+# cannot be resolved by semantic search alone — routed to refuse.
+_STRUCTURAL_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(p, re.IGNORECASE)
+    for p in [
+        r"\bchapter\s+\d+\b",
+        r"\bch\.?\s*\d+\b",
+        r"\bpage\s+\d+\b",
+        r"\bp\.\s*\d+\b",
+        r"\bsection\s+\d+[\.\d]*\b",
+    ]
+]
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -184,7 +198,12 @@ def route_node(state: GraphState) -> dict:
 
 def _classify(query: str) -> str:
     """Return the query type for *query*."""
-    # Check unsupported first — short-circuit greetings / chitchat.
+    # Structural references (chapter N, page N) can't be resolved by semantic
+    # search — refuse early before retrieval wastes time or fabricates.
+    if _matches_any(query, _STRUCTURAL_PATTERNS):
+        return "unsupported"
+
+    # Check unsupported next — short-circuit greetings / chitchat.
     if _matches_any(query, _UNSUPPORTED_PATTERNS):
         return "unsupported"
 
