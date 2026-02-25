@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 # Default number of results to retrieve
 DEFAULT_K = 5
-# Larger k for summarize queries — more chunks needed to cover a full topic/chapter
-SUMMARIZE_K = 20
 
 
 def retrieve_node(
@@ -59,11 +57,8 @@ def retrieve_node(
             "error": "Cannot retrieve: question is empty",
         }
 
-    query_type: str = state.get("query_type", "factual")
-    effective_k = SUMMARIZE_K if query_type == "summarize" else k
-
     try:
-        results, citations = retrieval.search_with_citations(question, k=effective_k)
+        results, citations = retrieval.search_with_citations(question, k=k)
 
         chunks = [r.chunk for r in results]
 
