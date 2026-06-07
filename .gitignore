@@ -144,7 +144,6 @@ cython_debug/
 *~
 
 # Project-specific ignores
-.vectorstore/
 .embedding_cache/
 .model_cache/
 data/
