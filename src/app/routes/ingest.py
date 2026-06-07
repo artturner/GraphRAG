@@ -8,8 +8,9 @@ import asyncio
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.app.auth import verify_api_key
 from src.app.schemas import IngestRequest, IngestResponse
 from src.config import CorpusConfig, settings
 from src.connectors.factory import ConnectorFactory
@@ -164,7 +165,7 @@ async def run_async_ingestion(corpus: str) -> None:
         },
     },
 )
-async def ingest(request: IngestRequest) -> IngestResponse:
+async def ingest(request: IngestRequest, _: None = Depends(verify_api_key)) -> IngestResponse:
     """Trigger document ingestion for the specified corpus.
     
     This endpoint starts the ingestion pipeline which:
@@ -286,7 +287,7 @@ async def ingest(request: IngestRequest) -> IngestResponse:
         },
     },
 )
-async def get_status(corpus: str) -> IngestResponse:
+async def get_status(corpus: str, _: None = Depends(verify_api_key)) -> IngestResponse:
     """Get the status of an async ingestion operation.
     
     Args:

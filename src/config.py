@@ -30,7 +30,7 @@ class CorpusConfig(BaseSettings):
     @classmethod
     def validate_connector_type(cls, v: str) -> str:
         """Validate connector type is one of the supported types."""
-        valid_types = {"local", "s3", "web"}
+        valid_types = {"local", "s3", "web", "json_pages"}
         if v not in valid_types:
             raise ValueError(f"connector_type must be one of {valid_types}, got {v}")
         return v
@@ -178,6 +178,11 @@ class Settings(BaseSettings):
         description="Path to YAML configuration file"
     )
     debug: bool = Field(default=False, description="Enable debug mode")
+    api_key: str | None = Field(
+        default=None,
+        description="Bearer token for API authentication (GRAPHRAG_API_KEY). "
+                    "If unset, the API is open — set this in production.",
+    )
     
     def __init__(self, **data: Any) -> None:
         """Initialize settings, loading from YAML file first if it exists."""
@@ -246,6 +251,7 @@ class Settings(BaseSettings):
             "GRAPH_REFUSAL_THRESHOLD": ("graph", "refusal_threshold"),
             # Global
             "DEBUG": ("debug",),
+            "GRAPHRAG_API_KEY": ("api_key",),
         }
         
         result = config.copy()

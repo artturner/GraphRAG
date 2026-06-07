@@ -9,6 +9,7 @@ from typing import Type
 
 from src.config import CorpusConfig
 from src.connectors.base import BaseConnector
+from src.connectors.json_pages import JsonPagesConnector
 from src.connectors.local import LocalConnector
 from src.connectors.s3 import S3Connector
 from src.connectors.web import WebConnector
@@ -54,6 +55,7 @@ class ConnectorFactory:
         "local": LocalConnector,
         "s3": S3Connector,
         "web": WebConnector,
+        "json_pages": JsonPagesConnector,
     }
     
     @classmethod
@@ -89,14 +91,13 @@ class ConnectorFactory:
         connector_class = cls._connectors[connector_type]
         
         # Create connector instance based on type
-        if connector_type == "local":
+        if connector_type in ("local", "json_pages"):
             return connector_class(source_path=config.path)
         elif connector_type == "s3":
             return connector_class(source=config.path)
         elif connector_type == "web":
             return connector_class(source=config.path)
         else:
-            # For custom connectors, try to pass path as source
             return connector_class(source=config.path)
     
     @classmethod
@@ -193,4 +194,5 @@ class ConnectorFactory:
             "local": LocalConnector,
             "s3": S3Connector,
             "web": WebConnector,
+            "json_pages": JsonPagesConnector,
         }

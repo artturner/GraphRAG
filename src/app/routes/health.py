@@ -20,81 +20,45 @@ VERSION = "1.0.0"
 
 
 async def check_embeddings_health() -> dict[str, str]:
-    """Check the health of the embeddings component.
-    
-    Returns:
-        Dictionary with health status ("ok" or "error").
-    """
     try:
-        from src.embeddings.factory import EmbeddingsFactory
-        
-        embeddings = EmbeddingsFactory.get_embeddings(settings.embeddings)
-        
-        # Try to embed a simple test string
-        test_result = embeddings.embed_query("health check")
-        
-        if test_result and len(test_result) > 0:
+        import src.app.routes.query as _qmod
+        if _qmod._retrieval_service is not None:
             return {"status": "ok"}
-        else:
-            return {"status": "error", "message": "Empty embedding result"}
-            
+        # Fallback before first request: verify config is valid
+        from src.embeddings.factory import EmbeddingsFactory
+        EmbeddingsFactory.get_embeddings(settings.embeddings)
+        return {"status": "ok"}
     except Exception as e:
         logger.warning(f"Embeddings health check failed: {e}")
         return {"status": "error", "message": str(e)}
 
 
 async def check_vector_store_health() -> dict[str, str]:
-    """Check the health of the vector store component.
-    
-    Returns:
-        Dictionary with health status ("ok" or "error").
-    """
     try:
-        from src.store.factory import VectorStoreFactory
-        
-        store = VectorStoreFactory.get_store(
-            store_type=settings.vectorstore.type,
-            dimension=settings.embeddings.dimension,
-            persist_directory=settings.vectorstore.persist_directory,
-            collection_name=settings.vectorstore.collection_name,
-        )
-        
-        # Try to get collection count or verify store is accessible
-        # For most vector stores, we can check if they're responsive
-        if hasattr(store, '_collection'):
-            # ChromaDB
-            count = store._collection.count()
-            return {"status": "ok", "document_count": str(count)}
-        elif hasattr(store, 'index'):
-            # FAISS
+        import src.app.routes.query as _qmod
+        if _qmod._workflow is not None:
+            # Workflow initialized — store loaded successfully at startup
             return {"status": "ok"}
-        else:
-            # Generic check - store exists
+        # Fallback: check persist directory exists and has content
+        from pathlib import Path
+        persist_dir = Path(settings.vectorstore.persist_directory)
+        if persist_dir.exists() and any(persist_dir.iterdir()):
             return {"status": "ok"}
-            
+        return {"status": "error", "message": "Vector store directory empty or missing"}
     except Exception as e:
         logger.warning(f"Vector store health check failed: {e}")
         return {"status": "error", "message": str(e)}
 
 
 async def check_llm_health() -> dict[str, str]:
-    """Check the health of the LLM component.
-    
-    Returns:
-        Dictionary with health status ("ok" or "error").
-    """
     try:
+        import src.app.routes.query as _qmod
+        if _qmod._workflow is not None:
+            return {"status": "ok"}
+        # Fallback: verify config is valid without instantiating
         from src.llm.factory import LLMFactory
-        
-        llm = LLMFactory.get_llm(settings.llm)
-        
-        # For most LLMs, we can verify they're configured correctly
-        # without making an actual API call (which would be expensive)
-        if hasattr(llm, 'model_name') or hasattr(llm, 'model'):
-            return {"status": "ok"}
-        else:
-            return {"status": "ok"}
-            
+        LLMFactory.get_llm(settings.llm)
+        return {"status": "ok"}
     except Exception as e:
         logger.warning(f"LLM health check failed: {e}")
         return {"status": "error", "message": str(e)}

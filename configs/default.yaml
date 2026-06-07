@@ -17,9 +17,9 @@
 # Corpus — where the source documents live
 # -----------------------------------------------------------------------------
 corpus:
-  name: "default"                     # Logical name for this corpus
-  path: "./data"                      # Directory containing source documents
-  connector_type: "local"             # local | s3 | web
+  name: "default"                          # Logical name for this corpus
+  path: "./data/AmGov4e_full_book.json"    # Directory containing source documents
+  connector_type: "json_pages"             # local | s3 | web
 
 
 # -----------------------------------------------------------------------------

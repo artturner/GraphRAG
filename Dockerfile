@@ -61,8 +61,14 @@ COPY pyproject.toml ./
 # Install the project package itself (source-only, deps already in venv)
 RUN pip install --no-cache-dir --no-deps -e .
 
+# Pre-cache the sentence-transformers model so cold starts don't download it
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
 # Create directories the app may write to
 RUN mkdir -p /app/data /app/.vectorstore /app/reports
+
+# Bundle the pre-built vector store (run ingestion locally first)
+COPY .vectorstore/ /app/.vectorstore/
 
 # Default configuration
 ENV CONFIG_PATH=configs/default.yaml

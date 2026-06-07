@@ -7,8 +7,9 @@ through the LangGraph workflow and returns structured responses.
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
+from src.app.auth import verify_api_key
 from src.app.schemas import QueryRequest, QueryResponse
 from src.config import settings
 from src.exceptions import RAGError
@@ -107,7 +108,7 @@ def get_workflow() -> Any:
         },
     },
 )
-async def query(request: QueryRequest) -> QueryResponse:
+async def query(request: QueryRequest, _: None = Depends(verify_api_key)) -> QueryResponse:
     """Process a question through the GraphRAG system.
     
     This endpoint accepts a question and processes it through the LangGraph

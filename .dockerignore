@@ -52,7 +52,7 @@ docker-compose.yml
 
 # Reports and local data caches
 reports/
-.vectorstore/
+.model_cache/
 
 # Egg info
 grounded_graphrag_tutor.egg-info/
