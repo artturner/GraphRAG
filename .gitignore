@@ -171,3 +171,10 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Local only: chat transcripts / student data / textbook-derived content
+bulletpoints.txt
+dockersetuppagenumbervector.txt
+finalresumebullets.txt
+improvements.txt
+railwaydeployment.txt
